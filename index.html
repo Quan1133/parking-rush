@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="挪车大师">
+<meta name="mobile-web-app-capable" content="yes">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="manifest" href="manifest.json?v=2">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>挪车大师 - Parking Rush v15</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
+body {
+  font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #1a1a2e;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  color:#eee;
+}
+#app { width:100%; max-width:480px; height:100vh; display:flex; flex-direction:column; padding:12px; gap:10px; }
+
+/* header */
+header { display:flex; justify-content:space-between; align-items:center; }
+h1 { font-size:1.3rem; background:linear-gradient(135deg,#f7971e,#ffd700); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.level-info { display:flex; gap:12px; align-items:center; }
+.level-info span { font-size:0.85rem; color:#aaa; }
+.level-info strong { color:#ffd700; font-size:1rem; }
+
+/* board container */
+.board-wrap { position:relative; width:100%; aspect-ratio:1; max-height:60vh; }
+#board {
+  position:absolute; inset:0; border-radius:16px; overflow:hidden;
+  background:#0f0f23; border:3px solid #2a2a4a; display:grid;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.5), inset 0 0 60px rgba(100,100,255,0.05);
+}
+.cell {
+  border:1px solid rgba(255,255,255,0.06);
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* exit marker */
+.exit-zone {
+  position:absolute; right:-6px; top:50%; width:10px; height:25%;
+  background:linear-gradient(90deg,transparent,rgba(255,215,0,0.5),transparent);
+  border-radius:4px; transform:translateY(-50%); pointer-events:none;
+  box-shadow: 0 0 12px rgba(255,215,0,0.3);
+}
+
+/* car */
+.car {
+  position:absolute; cursor:pointer;
+  transition: none;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(2px 3px 4px rgba(0,0,0,0.45));
+}
+.car.goal { filter: drop-shadow(0 0 8px rgba(231,76,60,0.6)) drop-shadow(2px 3px 4px rgba(0,0,0,0.4)); }
+.car:active { transform:scale(1.03); filter:brightness(1.15) drop-shadow(2px 3px 4px rgba(0,0,0,0.45)); }
+.car.goal:active { filter:brightness(1.15) drop-shadow(0 0 12px rgba(255,80,50,0.8)) drop-shadow(2px 3px 4px rgba(0,0,0,0.4)); }
+.car-label {
+  position:absolute; bottom:2px; right:4px; font-size:0.55rem; font-weight:700;
+  color:#fff; text-shadow:0 1px 2px rgba(0,0,0,0.7); pointer-events:none;
+  line-height:1; z-index:1;
+}
+
+/* controls */
+.controls { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+.btn {
+  padding:10px 20px; border:none; border-radius:25px; font-size:0.9rem; font-weight:600;
+  cursor:pointer; touch-action:manipulation; transition:all 0.15s;
+  color:#fff; letter-spacing:0.5px;
+}
+.btn:active { transform:scale(0.95); }
+.btn.undo { background:#2a2a4a; }
+.btn.reset { background:#e74c3c; }
+.btn.next { background:linear-gradient(135deg,#11998e,#38ef7d); color:#000; }
+.btn.prev { background:#2a2a4a; }
+.btn.hint { background:#e67e22; }
+.hud { display:flex; justify-content:center; gap:16px; font-size:0.9rem; }
+.hud-item { text-align:center; }
+.hud-item span { display:block; color:#888; font-size:0.7rem; }
+.hud-item strong { font-size:1.3rem; color:#ffd700; }
+
+/* win overlay */
+.win-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center;
+  z-index:10; opacity:0; pointer-events:none; transition:opacity 0.3s;
+}
+.win-overlay.show { opacity:1; pointer-events:auto; }
+.win-card {
+  background:#1a1a2e; border-radius:20px; padding:32px 28px; text-align:center;
+  border:2px solid #38ef7d; box-shadow: 0 0 40px rgba(56,239,125,0.2);
+}
+.win-card h2 { font-size:1.8rem; margin-bottom:8px; }
+.win-card .stars { font-size:2.5rem; margin:12px 0; }
+.win-card p { color:#aaa; margin:4px 0; }
+.win-card .best { color:#ffd700; }
+.win-card .btn { margin:8px 4px; }
+
+/* name overlay */
+#nameOverlay {
+  position:fixed; inset:0; background:rgba(10,10,30,0.95);
+  display:flex; align-items:center; justify-content:center;
+  z-index:100;
+}
+.name-box {
+  background:#1a1a2e; border:2px solid #ffd700;
+  border-radius:20px; padding:40px 32px; text-align:center;
+  width:320px; max-width:90vw;
+}
+.name-box small {
+  display:block; color:#888; font-size:0.75rem; margin-top:12px;
+}
+.name-box h2 { font-size:1.4rem; color:#ffd700; margin-bottom:8px; }
+.name-box p { color:#888; font-size:0.9rem; margin-bottom:20px; }
+.name-box input {
+  width:100%; padding:12px 16px; border-radius:12px;
+  border:2px solid #2a2a4a; background:#0f0f23; color:#fff;
+  font-size:1.1rem; text-align:center; outline:none;
+  margin-bottom:16px;
+}
+.name-box input:focus { border-color:#ffd700; }
+.name-box .btn { width:100%; }
+
+/* responsive */
+@media (max-width:380px) {
+  #app { padding:8px; gap:6px; }
+  h1 { font-size:1.1rem; }
+  .btn { padding:8px 16px; font-size:0.8rem; }
+}
+</style>
+</head>
+<body>
+<div id="nameOverlay">
+  <div class="name-box" id="nameBox">
+    <h2>🚗 挪车大师</h2>
+    <p id="namePrompt">请输入你的大名,开始挑战</p>
+    <input type="text" id="nameInput" placeholder="输入名字" maxlength="12" autocomplete="off" />
+    <button class="btn next" id="nameBtn" onclick="submitName()">开始挑战 ➡</button>
+    <button class="btn" id="resetBtn" style="display:none; margin-top:10px; background:#e74c3c;" onclick="resetPlayer()">清空该玩家记录</button>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <h1>🚗 挪车大师</h1>
+    <div class="level-info">
+      <span id="playerNameDisplay"></span>
+      <span>第 <strong id="lvlNum">1</strong> 关</span>
+      <span>共 <strong id="lvlTotal">20</strong> 关</span>
+    </div>
+  </header>
+
+  <div class="hud">
+    <div class="hud-item"><strong id="moveCount">0</strong><span>步数</span></div>
+    <div class="hud-item"><strong id="bestScore">-</strong><span>最佳</span></div>
+    <div class="hud-item"><strong id="parScore">?</strong><span>最优</span></div>
+  </div>
+
+  <div class="board-wrap">
+    <div id="board"></div>
+    <div class="exit-zone"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn prev" onclick="prevLevel()">⬅ 上一关</button>
+    <button class="btn undo" onclick="undo()">↩ 撤销</button>
+    <button class="btn reset" onclick="resetLevel()">🔄 重置</button>
+    <button class="btn hint" onclick="showHint()">💡 提示</button>
+    <button class="btn next" onclick="nextLevel()">下一关 ➡</button>
+  </div>
+</div>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-card">
+    <h2>🎉 通关!</h2>
+    <div class="stars" id="starsDisplay">⭐⭐⭐</div>
+    <p id="winMsg">步数: 0</p>
+    <p class="best" id="bestMsg"></p>
+    <button class="btn reset" onclick="resetLevel()">🔄 重玩</button>
+    <button class="btn next" onclick="nextLevel()">➡ 下一关</button>
+  </div>
+</div>
+
+<script>
+// ============ PLAYER NAME ============
+let playerName = '';
+
+function startWithName(name) {
+  playerName = name;
+  localStorage.setItem('parking_player_name', name);
+  // v15规则变更：关卡锁定，需要清空旧进度从头开始
+  const rulesVer = localStorage.getItem('parking_rules_ver');
+  if (rulesVer !== '15') {
+    // 清空旧的最佳记录
+    for (let i = 0; i < 20; i++) {
+      try { localStorage.removeItem('parking_best_' + i); } catch(e) {}
+    }
+    // 清空旧的玩家最佳记录
+    const oldSafe = name.replace(/[\s,;=$]/g, '_');
+    const oldPrefix = 'parking_' + oldSafe + '_best_';
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith(oldPrefix) || k === 'parking_progress')) {
+        try { localStorage.removeItem(k); } catch(e) {}
+      }
+    }
+    localStorage.setItem('parking_rules_ver', '15');
+  }
+  document.getElementById('nameOverlay').style.display = 'none';
+  document.getElementById('playerNameDisplay').textContent = '👤 ' + name + '  ';
+  loadLevel(0); // 从第1关开始
+  updateBestDisplay();
+}
+
+function submitName() {
+  const input = document.getElementById('nameInput');
+  const name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  startWithName(name);
+}
+
+function resetPlayer() {
+  if (!confirm('确定要清空 “' + playerName + '” 的所有最佳记录吗？')) return;
+  try {
+    const safe = playerName.replace(/[\s,;=$]/g, '_');
+    const prefix = 'parking_' + safe + '_best_';
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) localStorage.removeItem(k);
+    }
+  } catch(e) {}
+  updateBestDisplay();
+  document.getElementById('resetBtn').textContent = '已清空';
+}
+
+// Enter key submits
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('parking_player_name');
+  if (saved) {
+    // Ask whether to reuse old name or switch
+    document.getElementById('namePrompt').innerHTML = '欢迎回来，<strong style="color:#ffd700">' + saved + '</strong>！<br>输入新名字可切换玩家，或直接继续。';
+    document.getElementById('nameBtn').textContent = '继续挑战 ➡';
+    document.getElementById('resetBtn').style.display = 'block';
+    document.getElementById('nameInput').value = saved;
+    document.getElementById('nameInput').select();
+  } else {
+    document.getElementById('nameInput').focus();
+  }
+  document.getElementById('nameInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitName();
+  });
+});
+
+// ============ GAME ENGINE ============
+const GRID = 6;
+const BOARD_GAP = 4; // px between cars
+const LEVELS = [ // v15-20260704-lock
+  {cars:[[2,1,2,1,1],[4,3,2,1,0],[1,5,1,3,0],[3,0,2,1,0],[4,1,2,1,0],[0,4,1,3,0],[4,0,1,2,0]],par:7,name:"起步"},
+  {cars:[[2,1,3,1,1],[0,1,2,1,0],[3,3,1,3,0],[5,4,2,1,0],[3,2,1,2,0],[1,5,1,3,0],[1,1,2,1,0],[0,0,1,3,0]],par:7,name:"新手"},
+  {cars:[[4,1,3,1,1],[3,4,1,3,0],[2,1,1,2,0],[1,3,1,3,0],[2,4,2,1,0],[5,0,3,1,0],[0,3,2,1,0]],par:7,name:"热身"},
+  {cars:[[2,0,3,1,1],[4,4,2,1,0],[1,3,2,1,0],[2,3,1,3,0],[0,5,1,3,0],[0,1,3,1,0],[3,4,2,1,0],[5,0,3,1,0]],par:8,name:"走廊"},
+  {cars:[[3,0,2,1,1],[4,0,3,1,0],[2,3,1,2,0],[5,1,3,1,0],[0,1,1,2,0],[0,4,2,1,0],[0,2,1,3,0],[2,4,1,3,0],[1,0,1,2,0],[1,5,1,3,0]],par:8,name:"次序"},
+  {cars:[[3,0,2,1,1],[1,1,3,1,0],[4,5,1,2,0],[0,3,2,1,0],[1,5,1,2,0],[5,2,2,1,0],[0,0,2,1,0],[1,0,1,2,0],[2,2,1,3,0],[4,3,2,1,0],[4,1,1,2,0]],par:8,name:"夹击"},
+  {cars:[[2,1,3,1,1],[1,1,2,1,0],[4,3,2,1,0],[1,4,1,2,0],[0,0,3,1,0],[3,0,1,3,0],[1,5,1,3,0],[3,3,2,1,0],[5,4,2,1,0],[5,1,3,1,0],[0,3,3,1,0],[4,1,2,1,0]],par:9,name:"交易"},
+  {cars:[[2,1,2,1,1],[2,5,1,2,0],[0,1,2,1,0],[2,3,1,2,0],[0,4,1,2,0],[3,2,1,3,0],[0,3,1,2,0],[1,1,2,1,0],[5,0,2,1,0],[4,3,2,1,0],[2,4,1,2,0]],par:9,name:"绕道"},
+  {cars:[[3,0,2,1,1],[4,0,3,1,0],[2,3,1,2,0],[5,1,3,1,0],[0,1,1,2,0],[0,4,2,1,0],[0,2,1,3,0],[2,4,1,3,0],[1,0,1,2,0],[1,5,1,3,0],[5,4,2,1,0],[0,3,1,2,0]],par:10,name:"车库"},
+  {cars:[[2,2,2,1,1],[2,0,1,3,0],[4,1,1,2,0],[1,2,2,1,0],[4,3,2,1,0],[0,0,2,1,0],[5,3,3,1,0],[1,4,1,3,0],[0,5,1,2,0],[3,2,1,2,0],[2,5,1,3,0]],par:10,name:"堵路"},
+  {cars:[[1,1,3,1,1],[5,2,3,1,0],[2,2,1,3,0],[5,0,2,1,0],[2,3,2,1,0],[3,4,2,1,0],[1,5,1,2,0],[0,0,3,1,0],[2,1,1,2,0],[3,3,1,2,0]],par:11,name:"大考"},
+  {cars:[[2,2,2,1,1],[4,4,1,2,0],[3,0,1,3,0],[1,1,1,3,0],[0,2,1,2,0],[2,5,1,3,0],[3,3,1,2,0],[5,1,3,1,0],[0,4,2,1,0],[1,4,1,2,0],[0,0,1,2,0],[0,3,1,2,0]],par:11,name:"瓶颈"},
+  {cars:[[3,0,2,1,1],[0,3,1,2,0],[2,5,1,2,0],[0,5,1,2,0],[2,2,1,3,0],[0,0,3,1,0],[0,4,1,2,0],[5,1,3,1,0],[1,0,2,1,0],[4,4,2,1,0],[2,3,1,2,0],[2,4,1,2,0]],par:12,name:"高峰"},
+  {cars:[[3,1,3,1,1],[2,0,3,1,0],[0,1,2,1,0],[1,1,2,1,0],[0,5,1,3,0],[5,3,2,1,0],[4,5,1,2,0],[1,3,1,2,0],[4,1,2,1,0],[5,0,2,1,0],[1,4,1,3,0],[0,3,2,1,0],[0,0,1,2,0]],par:12,name:"双堵"},
+  {cars:[[2,2,2,1,1],[4,3,1,2,0],[3,2,1,2,0],[0,1,3,1,0],[2,5,1,3,0],[1,1,3,1,0],[1,0,1,3,0],[0,4,1,3,0],[4,1,1,2,0],[3,3,2,1,0],[0,5,1,2,0],[4,0,1,2,0],[2,1,1,2,0],[5,4,2,1,0]],par:13,name:"挤压"},
+  {cars:[[2,2,3,1,1],[3,0,2,1,0],[5,4,2,1,0],[4,0,1,2,0],[4,2,3,1,0],[3,5,1,2,0],[0,2,2,1,0],[0,4,2,1,0],[1,0,1,2,0],[0,1,1,3,0],[3,2,2,1,0],[5,1,3,1,0],[1,5,1,2,0],[1,2,3,1,0]],par:13,name:"困局"},
+  {cars:[[2,0,2,1,1],[0,2,3,1,0],[3,5,1,3,0],[3,0,1,3,0],[5,2,3,1,0],[1,5,1,2,0],[0,1,1,2,0],[2,2,1,3,0],[3,1,1,2,0],[2,3,1,2,0],[3,4,1,2,0],[1,2,2,1,0],[0,0,1,2,0],[1,4,1,2,0]],par:14,name:"迷宫"},
+  {cars:[[2,2,2,1,1],[0,4,2,1,0],[3,1,2,1,0],[4,5,1,2,0],[1,5,1,2,0],[1,1,1,2,0],[3,3,2,1,0],[4,0,3,1,0],[5,2,3,1,0],[0,0,1,2,0],[0,3,1,2,0],[5,0,2,1,0],[0,2,1,2,0],[1,4,1,2,0]],par:14,name:"铁壁"},
+  {cars:[[2,2,2,1,1],[2,0,1,2,0],[5,2,2,1,0],[0,4,1,3,0],[3,4,2,1,0],[3,1,1,2,0],[4,0,1,2,0],[0,2,2,1,0],[0,5,1,2,0],[3,2,1,2,0],[4,5,1,2,0],[1,0,2,1,0],[4,3,2,1,0]],par:15,name:"深渊"},
+  {cars:[[2,2,3,1,1],[0,2,3,1,0],[3,3,1,2,0],[5,3,3,1,0],[3,1,1,2,0],[1,0,2,1,0],[2,0,1,3,0],[1,5,1,3,0],[1,2,2,1,0],[4,4,2,1,0],[4,2,1,2,0],[5,0,2,1,0]],par:16,name:"终局"}
+];
+
+// All 20 levels verified: no overlap, no OOB, BFS-solvable
+
+let currentLevel = 0;
+let cars = [];           // { row, col, w, h, isGoal } - absolute positions
+let moveHistory = [];
+let moveCount = 0;
+let dragCar = null;
+let dragStart = { x:0, y:0 };
+let dragStartPos = { row:0, col:0 };
+let dragAxis = null;    // 'h' or 'v'
+let cellSize = 0;
+let boardEl = null;
+let touchActive = false;
+
+// ============ INIT ============
+// 检查某关是否已通关（有最佳记录算通关）
+function isLevelCleared(idx) {
+  return getBestForLevel(idx) !== null;
+}
+
+// 获取某关的星数
+function getLevelStars(idx) {
+  const best = getBestForLevel(idx);
+  if (best === null) return 0;
+  return getStars(best, LEVELS[idx].par);
+}
+
+// 获取最高已通关关卡索引（-1表示都没通关）
+function getMaxClearedLevel() {
+  let max = -1;
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (isLevelCleared(i)) max = i;
+  }
+  return max;
+}
+
+function loadLevel(idx) {
+  if (idx < 0 || idx >= LEVELS.length) return;
+  if (!playerName) { document.getElementById('nameOverlay').style.display='flex'; return; }
+  // 关卡锁定：第0关总是可玩，之后的关需要前一关通关
+  if (idx > 0 && !isLevelCleared(idx - 1)) {
+    alert('请先通过第 ' + idx + ' 关，才能挑战第 ' + (idx + 1) + ' 关！');
+    return;
+  }
+  currentLevel = idx;
+  const level = LEVELS[idx];
+  cars = level.cars.map((c,i) => ({ row:c[0], col:c[1], w:c[2], h:c[3], isGoal:!!c[4], id:i, colorIdx:i }));
+  moveCount = 0;
+  moveHistory = [];
+  updateUI();
+  renderBoard();
+  saveProgress();
+
+  document.getElementById('lvlNum').textContent = idx + 1;
+  document.getElementById('lvlTotal').textContent = LEVELS.length;
+  document.getElementById('parScore').textContent = level.par;
+  updateBestDisplay();
+  updateNavButtons();
+}
+
+function updateUI() {
+  document.getElementById('moveCount').textContent = moveCount;
+  const level = LEVELS[currentLevel];
+  document.getElementById('parScore').textContent = level.par;
+  updateBestDisplay();
+  checkWin();
+}
+
+function saveProgress() {
+  try {
+    const data = {};
+    for (let i = 0; i < LEVELS.length; i++) {
+      const b = localStorage.getItem('parking_best_' + i);
+      if (b) data[i] = parseInt(b);
+    }
+    localStorage.setItem('parking_progress', JSON.stringify({ level: currentLevel, best: data }));
+  } catch(e) {}
+}
+
+function updateBestDisplay() {
+  const level = LEVELS[currentLevel];
+  let best = getBestForLevel(currentLevel);
+  // Old/corrupt data could be below true par; clamp and persist it.
+  if (best !== null && best < level.par) {
+    best = level.par;
+    try { localStorage.setItem(bestKey(currentLevel), best); } catch(e) {}
+  }
+  document.getElementById('bestScore').textContent = best !== null ? best : '-';
+}
+
+function bestKey(idx) {
+  // Sanitize name so it can't break localStorage keys
+  const safe = playerName.replace(/[\s,;=$]/g, '_');
+  return 'parking_' + safe + '_best_' + idx;
+}
+
+function getBestForLevel(idx) {
+  if (!playerName) return null;
+  try {
+    const raw = localStorage.getItem(bestKey(idx));
+    return raw !== null ? parseInt(raw) : null;
+  } catch(e) { return null; }
+}
+
+function setBestForLevel(idx, moves) {
+  if (!playerName) return false;
+  const prev = getBestForLevel(idx);
+  if (prev === null || moves < prev) {
+    try { localStorage.setItem(bestKey(idx), moves); } catch(e) {}
+    return true;
+  }
+  return false;
+}
+
+// ============ RENDER ============
+function renderBoard() {
+  boardEl = document.getElementById('board');
+  boardEl.innerHTML = '';
+  boardEl.style.gridTemplateColumns = `repeat(${GRID}, 1fr)`;
+  boardEl.style.gridTemplateRows = `repeat(${GRID}, 1fr)`;
+
+  // Background grid cells
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      boardEl.appendChild(cell);
+    }
+  }
+
+  // Calculate cell size after layout
+  requestAnimationFrame(() => {
+    const rect = boardEl.getBoundingClientRect();
+    cellSize = rect.width / GRID;
+    renderCars();
+  });
+}
+
+function renderCars() {
+  // Remove old car elements
+  boardEl.querySelectorAll('.car').forEach(el => el.remove());
+
+  cars.forEach(car => {
+    const el = document.createElement('div');
+    el.className = 'car';
+    if (car.isGoal) el.classList.add('goal');
+
+    const gap = BOARD_GAP;
+    const left = car.col * cellSize + gap/2;
+    const top = car.row * cellSize + gap/2;
+    const width = car.w * cellSize - gap;
+    const height = car.h * cellSize - gap;
+
+    Object.assign(el.style, {
+      left: left + 'px',
+      top: top + 'px',
+      width: width + 'px',
+      height: height + 'px',
+    });
+
+    el.dataset.carId = car.id;
+    el.style.backgroundImage = `url(${getCarImage(car.w, car.h, car.isGoal, car.colorIdx)})`;
+
+    // Car label (small text overlay)
+    const label = document.createElement('span');
+    label.className = 'car-label';
+    label.textContent = car.isGoal ? '' : (car.colorIdx + 1);
+    el.appendChild(label);
+
+    // Touch events
+    el.addEventListener('touchstart', onTouchStart, {passive:false});
+    el.addEventListener('touchmove', onTouchMove, {passive:false});
+    el.addEventListener('touchend', onTouchEnd);
+    // Mouse events (desktop)
+    el.addEventListener('mousedown', onMouseDown);
+
+    boardEl.appendChild(el);
+  });
+
+  // Update exit zone position
+  const goalCar = cars.find(c => c.isGoal);
+  if (goalCar && goalCar.w > goalCar.h) {
+    const exitY = (goalCar.row + goalCar.h/2) / GRID * 100;
+    document.querySelector('.exit-zone').style.top = exitY + '%';
+  }
+}
+
+// ============ CAR ART ============
+// Palette of nice car colours (body / windshield tint)
+const OTHER_COLOR = ['#5a6c7d','#8fa4b8'];
+const GOAL_COLOR = ['#e63946','#ff6b6b'];
+
+function drawCarImage(w, h, isGoal, colorIdx) {
+  const PX = 96; // pixels per cell
+  const pad = 6; // padding within cell
+  const cw = w * PX;
+  const ch_val = h * PX;
+  const [bodyColor, roofColor] = isGoal ? GOAL_COLOR : OTHER_COLOR;
+
+  const cv = document.createElement('canvas');
+  cv.width = cw;
+  cv.height = ch_val;
+  const ctx = cv.getContext('2d');
+
+  const bx = pad, by = pad, bw = cw - pad * 2, bh = ch_val - pad * 2;
+  const r = Math.min(bw, bh) * 0.22; // corner radius
+
+  // body shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  roundRect(ctx, bx + 2, by + 2, bw, bh, r);
+  ctx.fill();
+
+  // body
+  ctx.fillStyle = bodyColor;
+  roundRect(ctx, bx, by, bw, bh, r);
+  ctx.fill();
+
+  // body highlight (top edge gradient)
+  const hlg = ctx.createLinearGradient(0, by, 0, by + bh * 0.5);
+  hlg.addColorStop(0, 'rgba(255,255,255,0.25)');
+  hlg.addColorStop(1, 'rgba(255,255,255,0)');
+  roundRect(ctx, bx, by, bw, bh, r);
+  ctx.fillStyle = hlg;
+  ctx.fill();
+
+  const isH = w >= h;
+
+  if (isH) {
+    // === HORIZONTAL CAR ===
+    const roofL = cw * 0.18, roofR = cw * 0.82;
+    const roofT = ch_val * 0.18, roofB = ch_val * 0.82;
+    const roofRW = Math.min(bw, bh) * 0.28;
+
+    // windshield (rear)
+    ctx.fillStyle = '#1a1a2e';
+    roundRect(ctx, roofL - 2, roofT, roofR - roofL + 4, roofB - roofT, roofRW);
+    ctx.fill();
+    // windshield glass
+    ctx.fillStyle = '#87CEEB';
+    ctx.globalAlpha = 0.45;
+    roundRect(ctx, roofL + 2, roofT + 2, roofR - roofL - 4, roofB - roofT - 4, roofRW - 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // roof
+    ctx.fillStyle = roofColor;
+    roundRect(ctx, roofL, roofT, roofR - roofL, roofB - roofT, roofRW);
+    ctx.fill();
+
+    // roof highlight
+    const rhlg = ctx.createLinearGradient(0, roofT, 0, roofB);
+    rhlg.addColorStop(0, 'rgba(255,255,255,0.3)');
+    rhlg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = rhlg;
+    roundRect(ctx, roofL, roofT, roofR - roofL, roofB - roofT, roofRW);
+    ctx.fill();
+
+    // headlights + taillights
+    drawLight(ctx, bx + r, ch_val * 0.5 - 3, '#ffdd57', 5, 3);    // front left
+    drawLight(ctx, bx + r, ch_val * 0.5 + 3, '#ffdd57', 5, 3);    // front right
+    drawLight(ctx, bx + bw - r - 5, ch_val * 0.5 - 3, '#ff4444', 4, 3); // rear left
+    drawLight(ctx, bx + bw - r - 5, ch_val * 0.5 + 3, '#ff4444', 4, 3); // rear right
+
+    // wheels
+    const whR = PX * 0.13, whW = PX * 0.08;
+    const wheelY = by + 3;
+    drawWheel(ctx, bx + bw * 0.22, wheelY, whR, whW);
+    drawWheel(ctx, bx + bw * 0.78, wheelY, whR, whW);
+    drawWheel(ctx, bx + bw * 0.22, by + bh - 3, whR, whW);
+    drawWheel(ctx, bx + bw * 0.78, by + bh - 3, whR, whW);
+  } else {
+    // === VERTICAL CAR ===
+    const roofT = ch_val * 0.12, roofB = ch_val * 0.88;
+    const roofL = cw * 0.18, roofR = cw * 0.82;
+    const roofRW = Math.min(bw, bh) * 0.28;
+
+    // windshield (rear)
+    ctx.fillStyle = '#1a1a2e';
+    roundRect(ctx, roofL, roofT - 2, roofR - roofL, roofB - roofT + 4, roofRW);
+    ctx.fill();
+    // windshield glass
+    ctx.fillStyle = '#87CEEB';
+    ctx.globalAlpha = 0.45;
+    roundRect(ctx, roofL + 2, roofT + 2, roofR - roofL - 4, roofB - roofT - 4, roofRW - 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // roof
+    ctx.fillStyle = roofColor;
+    roundRect(ctx, roofL, roofT, roofR - roofL, roofB - roofT, roofRW);
+    ctx.fill();
+
+    // roof highlight
+    const rhlg = ctx.createLinearGradient(roofL, 0, roofR, 0);
+    rhlg.addColorStop(0, 'rgba(255,255,255,0.3)');
+    rhlg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = rhlg;
+    roundRect(ctx, roofL, roofT, roofR - roofL, roofB - roofT, roofRW);
+    ctx.fill();
+
+    // headlights (top = front for vertical car)
+    drawLight(ctx, cw * 0.5 - 4, by + r, '#ffdd57', 3, 5);
+    drawLight(ctx, cw * 0.5 + 4, by + r, '#ffdd57', 3, 5);
+    drawLight(ctx, cw * 0.5 - 4, by + bh - r - 5, '#ff4444', 3, 4);
+    drawLight(ctx, cw * 0.5 + 4, by + bh - r - 5, '#ff4444', 3, 4);
+
+    // wheels
+    const whR = PX * 0.13, whW = PX * 0.08;
+    const wheelX = bx + 3;
+    drawWheel(ctx, wheelX, by + bh * 0.22, whR, whW);
+    drawWheel(ctx, bx + bw - 3, by + bh * 0.22, whR, whW);
+    drawWheel(ctx, wheelX, by + bh * 0.78, whR, whW);
+    drawWheel(ctx, bx + bw - 3, by + bh * 0.78, whR, whW);
+  }
+
+  return cv.toDataURL();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawWheel(ctx, cx, cy, r, w) {
+  // tire
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r, w, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // hub
+  ctx.fillStyle = '#555';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r * 0.45, w * 0.45, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // hub center
+  ctx.fillStyle = '#888';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawLight(ctx, cx, cy, color, rx, ry) {
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 4;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+// Pre-generated car image cache
+const carImageCache = {};
+function getCarImage(w, h, isGoal, colorIdx) {
+  const key = `${w}_${h}_${isGoal ? 'G' : 'C'}${colorIdx}`;
+  if (!carImageCache[key]) carImageCache[key] = drawCarImage(w, h, isGoal, colorIdx);
+  return carImageCache[key];
+}
+
+// ============ COLLISION DETECTION ============
+function getGrid(carIdToExclude) {
+  const grid = Array.from({length:GRID}, () => Array(GRID).fill(-1));
+  cars.forEach(car => {
+    if (car.id === carIdToExclude) return;
+    for (let r = car.row; r < car.row + car.h; r++) {
+      for (let c = car.col; c < car.col + car.w; c++) {
+        grid[r][c] = car.id;
+      }
+    }
+  });
+  return grid;
+}
+
+function canMoveTo(car, newRow, newCol) {
+  const grid = getGrid(car.id);
+  for (let r = newRow; r < newRow + car.h; r++) {
+    for (let c = newCol; c < newCol + car.w; c++) {
+      if (r < 0 || r >= GRID || c < 0 || c >= GRID) {
+        // Allow goal car to exit right
+        if (car.isGoal && c >= GRID && r >= newRow && r < newRow + car.h) continue;
+        return false;
+      }
+      if (grid[r][c] !== -1) return false;
+    }
+  }
+  return true;
+}
+
+// ============ DRAG HANDLERS ============
+function getGridPos(e) {
+  const rect = boardEl.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    col: Math.floor((clientX - rect.left) / cellSize),
+    row: Math.floor((clientY - rect.top) / cellSize),
+    x: clientX,
+    y: clientY
+  };
+}
+
+function onTouchStart(e) {
+  e.preventDefault();
+  touchActive = true;
+  const carId = parseInt(e.currentTarget.dataset.carId);
+  dragCar = cars.find(c => c.id === carId);
+  if (!dragCar) return;
+  const pos = getGridPos(e);
+  dragStart = { x: pos.x, y: pos.y };
+  dragStartPos = { row: dragCar.row, col: dragCar.col };
+  dragAxis = dragCar.w > dragCar.h ? 'h' : 'v';
+  e.currentTarget.style.transition = 'none';
+}
+
+function onMouseDown(e) {
+  if (touchActive) return;
+  const carId = parseInt(e.currentTarget.dataset.carId);
+  dragCar = cars.find(c => c.id === carId);
+  if (!dragCar) return;
+  const pos = getGridPos(e);
+  dragStart = { x: pos.x, y: pos.y };
+  dragStartPos = { row: dragCar.row, col: dragCar.col };
+  dragAxis = dragCar.w > dragCar.h ? 'h' : 'v';
+
+  const onMove = (ev) => {
+    ev.preventDefault();
+    handleDrag(ev);
+  };
+  const onUp = () => {
+    handleDragEnd();
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function onTouchMove(e) {
+  e.preventDefault();
+  handleDrag(e);
+}
+
+function onTouchEnd(e) {
+  handleDragEnd();
+}
+
+function handleDrag(e) {
+  if (!dragCar) return;
+  const pos = getGridPos(e);
+  const dx = pos.x - dragStart.x;
+  const dy = pos.y - dragStart.y;
+
+  let newRow = dragStartPos.row;
+  let newCol = dragStartPos.col;
+
+  if (dragAxis === 'h') {
+    const colDelta = Math.round(dx / cellSize);
+    newCol = dragStartPos.col + colDelta;
+    newCol = Math.max(0, Math.min(GRID - dragCar.w, newCol));
+  } else {
+    const rowDelta = Math.round(dy / cellSize);
+    newRow = dragStartPos.row + rowDelta;
+    newRow = Math.max(0, Math.min(GRID - dragCar.h, newRow));
+  }
+
+  if (newRow === dragCar.row && newCol === dragCar.col) return;
+
+  if (canMoveTo(dragCar, newRow, newCol)) {
+    dragCar.row = newRow;
+    dragCar.col = newCol;
+    updateCarPosition(dragCar);
+  }
+}
+
+function handleDragEnd() {
+  if (!dragCar) return;
+  touchActive = false;
+
+  if (dragCar.row !== dragStartPos.row || dragCar.col !== dragStartPos.col) {
+    moveHistory.push({
+      carId: dragCar.id,
+      fromRow: dragStartPos.row,
+      fromCol: dragStartPos.col,
+      toRow: dragCar.row,
+      toCol: dragCar.col
+    });
+    moveCount++;
+    updateUI();
+  }
+
+  dragCar = null;
+  dragStartPos = null;
+  dragAxis = null;
+}
+
+function updateCarPosition(car) {
+  const el = boardEl.querySelector(`.car[data-car-id="${car.id}"]`);
+  if (!el) return;
+  const gap = BOARD_GAP;
+  el.style.left = (car.col * cellSize + gap/2) + 'px';
+  el.style.top = (car.row * cellSize + gap/2) + 'px';
+
+  // Win check is now handled only after drag ends (handleDragEnd -> updateUI)
+  // so that moveCount is finalized before recording the best score.
+}
+
+// ============ WIN CHECK ============
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playVictorySound() {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    // Arpeggio: C5-E5-G5-C6 ascending + final chord
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = i === notes.length - 1 ? 'triangle' : 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now + i * 0.1);
+      gain.gain.linearRampToValueAtTime(0.3, now + i * 0.1 + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.1);
+      osc.stop(now + i * 0.1 + 0.5);
+    });
+    // Major chord pad at end
+    [523.25, 659.25, 783.99].forEach(freq => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now + 0.5);
+      gain.gain.linearRampToValueAtTime(0.15, now + 0.55);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 1.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + 0.5);
+      osc.stop(now + 1.3);
+    });
+  } catch(e) { /* audio not available, that's ok */ }
+}
+
+function checkWin() {
+  const goalCar = cars.find(c => c.isGoal);
+  if (!goalCar) return false;
+  if (goalCar.col + goalCar.w >= GRID) {
+    showWin();
+    return true;
+  }
+  return false;
+}
+
+function showWin() {
+  playVictorySound();
+  const level = LEVELS[currentLevel];
+  const isNewBest = setBestForLevel(currentLevel, moveCount);
+  const stars = getStars(moveCount, level.par);
+
+  document.getElementById('starsDisplay').textContent = getStarsEmoji(stars);
+  document.getElementById('winMsg').textContent = `步数: ${moveCount}  (最优: ${level.par})`;
+  document.getElementById('bestMsg').textContent = isNewBest
+    ? '🏆 新纪录！'
+    : `最佳记录: ${getBestForLevel(currentLevel) || level.par} 步`;
+  document.getElementById('winOverlay').classList.add('show');
+  updateBestDisplay();
+  updateNavButtons();
+  renderFireworks();
+
+  // 最后一关通关后，检查全三星
+  if (currentLevel === LEVELS.length - 1) {
+    setTimeout(() => checkAllStars(), 1500);
+  }
+}
+
+// 检查全部关卡的星数
+function checkAllStars() {
+  const notThreeStars = [];
+  for (let i = 0; i < LEVELS.length; i++) {
+    const s = getLevelStars(i);
+    if (s < 3) notThreeStars.push(i + 1);
+  }
+  if (notThreeStars.length === 0) {
+    // 全三星！
+    showFinalWin(true, []);
+  } else {
+    showFinalWin(false, notThreeStars);
+  }
+}
+
+function showFinalWin(allStars, missingLevels) {
+  // 关掉普通通关弹窗
+  document.getElementById('winOverlay').classList.remove('show');
+  // 创建全屏最终通关弹窗
+  let overlay = document.getElementById('finalWinOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'finalWinOverlay';
+    overlay.className = 'win-overlay';
+    overlay.innerHTML = '<div class="win-card" id="finalWinCard"></div>';
+    document.body.appendChild(overlay);
+  }
+  const card = overlay.querySelector('#finalWinCard');
+  if (allStars) {
+    card.innerHTML = `
+      <h2 style="font-size:2rem;color:#ffd gold;">🏆🏆🏆</h2>
+      <h2 style="font-size:1.8rem;color:#ffd700;margin:12px 0;">${playerName}，你最棒！！！</h2>
+      <p style="color:#38ef7d;font-size:1.1rem;margin:12px 0;">全 ${LEVELS.length} 关三星通关！</p>
+      <button class="btn next" onclick="closeFinalWin()">太棒了！</button>
+    `;
+    // 大型烟花
+    for (let round = 0; round < 3; round++) {
+      setTimeout(() => renderFireworks(), round * 600);
+    }
+  } else {
+    let levelList = missingLevels.join(', ');
+    card.innerHTML = `
+      <h2 style="font-size:1.6rem;color:#ffd700;margin-bottom:12px;">🎉 通关！</h2>
+      <p style="color:#aaa;margin:8px 0;">恭喜完成全部 ${LEVELS.length} 关！</p>
+      <p style="color:#e67e22;margin:12px 0;">以下关卡未获三星：</p>
+      <p style="color:#ffd700;font-size:1.3rem;margin:8px 0;">第 ${levelList} 关</p>
+      <p style="color:#888;font-size:0.85rem;margin:12px 0;">再挑战这些关卡，拿到全三星吧！</p>
+      <button class="btn next" onclick="closeFinalWin()">继续</button>
+    `;
+  }
+  overlay.classList.add('show');
+}
+
+function closeFinalWin() {
+  document.getElementById('finalWinOverlay').classList.remove('show');
+}
+
+function getStars(moves, par) {
+  if (moves <= par) return 3;
+  if (moves <= par * 1.5) return 2;
+  return 1;
+}
+
+function getStarsEmoji(n) {
+  return ['','⭐','⭐⭐','⭐⭐⭐'][n];
+}
+
+function renderFireworks() {
+  // Simple particle burst
+  const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff922b','#e599f7'];
+  for (let i = 0; i < 30; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div');
+      const size = 4 + Math.random() * 8;
+      Object.assign(p.style, {
+        position:'fixed', width:size+'px', height:size+'px', borderRadius:'50%',
+        background:colors[Math.floor(Math.random()*colors.length)],
+        left:(20+Math.random()*60)+'%', top:(30+Math.random()*40)+'%',
+        zIndex:11, pointerEvents:'none',
+        transition:'all 0.8s cubic-bezier(0,0.5,0.5,1)',
+        opacity:'1'
+      });
+      document.body.appendChild(p);
+      requestAnimationFrame(() => {
+        p.style.transform = `translate(${(Math.random()-0.5)*200}px,${(Math.random()-0.5)*200}px) scale(0)`;
+        p.style.opacity = '0';
+      });
+      setTimeout(() => p.remove(), 900);
+    }, i * 30);
+  }
+}
+
+// ============ ACTIONS ============
+function undo() {
+  if (moveHistory.length === 0) return;
+  const last = moveHistory.pop();
+  const car = cars.find(c => c.id === last.carId);
+  if (car) {
+    car.row = last.fromRow;
+    car.col = last.fromCol;
+  }
+  moveCount--;
+  updateUI();
+  renderCars();
+}
+
+function resetLevel() {
+  document.getElementById('winOverlay').classList.remove('show');
+  const fwo = document.getElementById('finalWinOverlay');
+  if (fwo) fwo.classList.remove('show');
+  // Unlock audio on first touch (mobile browsers require user gesture)
+  document.addEventListener('touchstart', () => { try { getAudioCtx(); } catch(e) {} }, { once: true });
+  document.addEventListener('click', () => { try { getAudioCtx(); } catch(e) {} }, { once: true });
+  loadLevel(currentLevel);
+}
+
+function nextLevel() {
+  document.getElementById('winOverlay').classList.remove('show');
+  if (currentLevel < LEVELS.length - 1) loadLevel(currentLevel + 1);
+}
+
+function prevLevel() {
+  document.getElementById('winOverlay').classList.remove('show');
+  if (currentLevel > 0) loadLevel(currentLevel - 1);
+}
+
+// 更新导航按钮的可用状态
+function updateNavButtons() {
+  const prevBtn = document.querySelector('.btn.prev');
+  const nextBtn = document.querySelector('.btn.next');
+  // 上一关：第1关以上才能点
+  if (prevBtn) prevBtn.style.opacity = currentLevel > 0 ? '1' : '0.3';
+  // 下一关：当前关已通关且有下一关才能点
+  if (nextBtn) {
+    const canNext = currentLevel < LEVELS.length - 1 && isLevelCleared(currentLevel);
+    nextBtn.style.opacity = canNext ? '1' : '0.3';
+  }
+}
+
+function showHint() {
+  // Simple hint: find a car that can move and highlight it
+  for (const car of cars) {
+    const dirs = car.w > car.h ? [[0,-1],[0,1]] : [[-1,0],[1,0]];
+    for (const [dr,dc] of dirs) {
+      if (canMoveTo(car, car.row + dr, car.col + dc)) {
+        const el = boardEl.querySelector(`.car[data-car-id="${car.id}"]`);
+        if (el) {
+          el.style.animation = 'pulse 0.5s ease 3';
+          setTimeout(() => el.style.animation = '', 1500);
+        }
+        return;
+      }
+    }
+  }
+  // No movable car found - might be near win
+  alert('再仔细看看,红色车的出口就在右边!');
+}
+
+// Add pulse animation
+const pulseStyle = document.createElement('style');
+pulseStyle.textContent = `
+@keyframes pulse {
+  0%,100% { box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15); }
+  50% { box-shadow: 0 0 20px rgba(255,215,0,0.8), 0 2px 8px rgba(0,0,0,0.4); }
+}`;
+document.head.appendChild(pulseStyle);
+
+// ============ RESIZE HANDLER ============
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    const rect = boardEl.getBoundingClientRect();
+    cellSize = rect.width / GRID;
+    renderCars();
+  }, 150);
+});
+
+// ============ INIT ============
+// Restore progress
+try {
+  // 恢复进度：从第1关开始，如果已有通关记录则跳到最高已通关+1
+  const maxCleared = getMaxClearedLevel();
+  if (maxCleared >= 0 && maxCleared + 1 < LEVELS.length) {
+    currentLevel = maxCleared + 1;
+  } else if (maxCleared === LEVELS.length - 1) {
+    currentLevel = 0; // 全通关了，从第1关开始
+  } else {
+    currentLevel = 0;
+  }
+} catch(e) {}
+
+// 只有已有玩家名才直接加载，否则等输入名字
+if (localStorage.getItem('parking_player_name')) {
+  // 不自动加载，等用户在弹窗确认后再加载
+}
+loadLevel(currentLevel);
+</script>
+</body>
+</html>
