@@ -1080,7 +1080,7 @@ loadLevel(currentLevel);
 
 <!-- Prevent page bounce/scroll on all mobile browsers and WeChat webview -->
 <script>
-  document.addEventListener('touchstart', function(e){ e.preventDefault(); }, { passive: false });
+  // Only block touchmove; do NOT block touchstart or buttons/inputs break.
   document.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive: false });
 </script>
 </body>
